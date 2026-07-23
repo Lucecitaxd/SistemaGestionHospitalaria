@@ -43,6 +43,7 @@ func main() {
 
 	router.GET("/api/v1/turnos", listarTurnos)
 	router.POST("/api/v1/turnos", crearTurno)
+	router.PUT("/api/v1/turnos/:id/estado", actualizarEstadoTurno)
 
 	log.Println("MS Turnos escuchando en el puerto 8081...")
 	router.Run(":8081")
@@ -100,4 +101,35 @@ func crearTurno(c *gin.Context) {
 
 	nuevo.IDTurno = idGenerado
 	c.JSON(http.StatusCreated, nuevo)
+}
+
+func actualizarEstadoTurno(c *gin.Context) {
+	idTurno := c.Param("id")
+
+	var body struct {
+		Estado string `json:"estado" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := db.Exec(`
+		UPDATE turnos
+		SET estado = $1, actualizado_en = now()
+		WHERE id_turno = $2`,
+		body.Estado, idTurno,
+	)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	filas, _ := result.RowsAffected()
+	if filas == 0 {
+		c.JSON(http.StatusNotFound, gin.H{"error": "turno no encontrado"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"id_turno": idTurno, "estado": body.Estado})
 }
